@@ -1,0 +1,42 @@
+# ===== REAL SECRETS (never commit) =====
+# WiFi password + Firebase Database Secret live only here:
+ScourSentry/secrets.h
+
+# Optional: uncomment the next line if you do NOT want the web Firebase
+# config in GitHub. (Note: after you host the site, that config is visible
+# in the browser anyway. For Vercel/GitHub deploy, leave this commented.)
+# dashboard/firebase-config.js
+
+# ===== OS / editor =====
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# ===== Arduino / build junk =====
+**/build/
+**/.pio/
+**/cmake-build-*/
+*.elf
+*.bin
+*.hex
+*.map
+
+# ===== Node / hosting tooling (if added later) =====
+node_modules/
+.firebase/
+.vercel/
+.netlify/
+dist/
+.cache/
+*.log
+.env
+.env.*
+!.env.example
+
+# ===== Python local server / caches =====
+__pycache__/
+*.pyc
+.venv/

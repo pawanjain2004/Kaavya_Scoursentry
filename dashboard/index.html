@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scour Sentry | Bridge Pier Monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=2" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M2 14 Q20 2 38 14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <rect x="9" y="14" width="5" height="18" rx="1" fill="currentColor"/>
+        <rect x="26" y="14" width="5" height="18" rx="1" fill="currentColor"/>
+        <path d="M0 34 Q5 31 10 34 T20 34 T30 34 T40 34" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+      </svg>
+      <div>
+        <h1>Scour Sentry</h1>
+        <p class="subtitle">Bridge pier scour early-warning system</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="device-chip">Device <strong id="deviceId">-</strong></div>
+      <div id="connPill" class="pill pill-wait"><span class="dot"></span><span id="connText">Connecting...</span></div>
+      <div class="last-update">
+        Last Firebase update<br />
+        <strong id="lastUpdate">waiting...</strong>
+        <span class="age" id="lastAge"></span>
+      </div>
+    </div>
+  </header>
+
+  <div id="demoBar" class="demo-bar hidden">
+    <span><strong>DEMO MODE</strong>: showing simulated data. Add your Firebase credentials in <code>firebase-config.js</code> to go live.</span>
+    <div class="demo-controls">
+      Scenario:
+      <button data-scenario="auto" class="active">Auto</button>
+      <button data-scenario="safe">Safe</button>
+      <button data-scenario="warning">Warning</button>
+      <button data-scenario="danger">Danger</button>
+    </div>
+  </div>
+
+  <main>
+    <!-- HARDWARE CONNECTION STATUS -->
+    <section class="conn-grid">
+      <article class="conn-card" id="cardEsp">
+        <div class="conn-label">ESP32 → Firebase</div>
+        <div class="conn-state" id="espState">WAITING</div>
+        <div class="conn-detail" id="espDetail">No live packet yet</div>
+      </article>
+      <article class="conn-card" id="cardMpu">
+        <div class="conn-label">MPU6050 sensor</div>
+        <div class="conn-state" id="mpuState">UNKNOWN</div>
+        <div class="conn-detail" id="mpuDetail">Waiting for device status</div>
+      </article>
+      <article class="conn-card" id="cardSd">
+        <div class="conn-label">SD card module</div>
+        <div class="conn-state" id="sdState">UNKNOWN</div>
+        <div class="conn-detail" id="sdDetail">Waiting for device status</div>
+      </article>
+      <article class="conn-card" id="cardWifi">
+        <div class="conn-label">WiFi link</div>
+        <div class="conn-state" id="wifiState">UNKNOWN</div>
+        <div class="conn-detail" id="wifiDetail">Waiting for device status</div>
+      </article>
+    </section>
+
+    <!-- STATUS BANNER -->
+    <section id="statusBanner" class="status-banner level-unknown">
+      <div class="status-main">
+        <div class="status-label">Structure status</div>
+        <div id="statusText" class="status-text">WAITING</div>
+        <div id="statusMsg" class="status-msg">Waiting for real data from Firebase...</div>
+        <div id="alertChips" class="chips"></div>
+      </div>
+      <div class="indicators">
+        <div class="led-panel">
+          <div class="led-col"><span id="ledRed" class="led red"></span><small>Red</small></div>
+          <div class="led-col"><span id="ledYellow" class="led yellow"></span><small>Yellow</small></div>
+          <div class="led-col"><span id="ledGreen" class="led green"></span><small>Green</small></div>
+        </div>
+        <div id="buzzerBox" class="buzzer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z" fill="currentColor"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <span id="buzzerText">Buzzer off</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE FIREBASE FEED -->
+    <section class="card feed-card">
+      <div class="card-head">
+        <h2>Live Firebase feed</h2>
+        <span class="hint">real packets from <code>scourSentry/pier-01/live</code></span>
+      </div>
+      <div class="feed-meta">
+        <div>Last value received: <strong id="feedLastTime">-</strong></div>
+        <div>Source note: <strong id="feedNote">-</strong></div>
+        <div>Packets received this session: <strong id="feedCount">0</strong></div>
+      </div>
+      <ul id="feedLog" class="feed-log"><li class="empty">Waiting for first live update from Firebase...</li></ul>
+    </section>
+
+    <!-- KPI CARDS -->
+    <section class="kpis">
+      <article class="card kpi">
+        <div class="kpi-head"><span>Pier tilt</span><span class="tag" id="tiltTag">-</span></div>
+        <div class="kpi-value"><span id="tiltValue">--</span><small>deg</small></div>
+        <div class="kpi-sub">Roll <b id="rollValue">--</b> deg &nbsp;|&nbsp; Pitch <b id="pitchValue">--</b> deg</div>
+        <div class="gauge" id="tiltGauge"><div class="gz g"></div><div class="gz y"></div><div class="gz r"></div><div class="marker"></div></div>
+        <div class="gauge-legend"><span>0</span><span id="tiltWarnLbl">warn</span><span id="tiltDangerLbl">danger</span></div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-head"><span>Natural frequency</span><span class="tag" id="freqTag">-</span></div>
+        <div class="kpi-value"><span id="freqValue">--</span><small>Hz</small></div>
+        <div class="kpi-sub">Baseline <b id="baseFreqValue">--</b> Hz &nbsp;|&nbsp; Change <b id="freqChangeValue">--</b></div>
+        <div class="gauge" id="freqGauge"><div class="gz g"></div><div class="gz y"></div><div class="gz r"></div><div class="marker"></div></div>
+        <div class="gauge-legend"><span>0% drop</span><span id="freqWarnLbl">warn</span><span id="freqDangerLbl">danger</span></div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-head"><span>Vibration (RMS)</span><span class="tag" id="vibTag">-</span></div>
+        <div class="kpi-value"><span id="vibValue">--</span><small>mg</small></div>
+        <div class="kpi-sub">Peak <b id="vibPeakValue">--</b> mg &nbsp;|&nbsp; Peak amp. <b id="peakAmpValue">--</b> mg</div>
+        <div class="gauge" id="vibGauge"><div class="gz g"></div><div class="gz y"></div><div class="gz r"></div><div class="marker"></div></div>
+        <div class="gauge-legend"><span>0</span><span id="vibWarnLbl">warn</span><span id="vibDangerLbl">danger</span></div>
+      </article>
+
+      <article class="card kpi health">
+        <div class="kpi-head"><span>Device health</span></div>
+        <ul class="health-list">
+          <li><span>MPU6050 sensor</span><b id="hSensor">-</b></li>
+          <li><span>SD card logging</span><b id="hSd">-</b></li>
+          <li><span>WiFi signal</span><b id="hRssi">-</b></li>
+          <li><span>Tilt zero</span><b id="hTiltCal">-</b></li>
+          <li><span>Freq. baseline</span><b id="hFreqCal">-</b></li>
+          <li><span>Sample rate</span><b id="hFs">-</b></li>
+          <li><span>Uptime</span><b id="hUptime">-</b></li>
+        </ul>
+      </article>
+    </section>
+
+    <!-- PIER VISUAL + SPECTRUM -->
+    <section class="grid-2">
+      <article class="card">
+        <div class="card-head"><h2>Pier orientation</h2><span class="hint">roll drawn x10 exaggerated</span></div>
+        <div class="pier-wrap">
+          <svg id="pierSvg" viewBox="0 0 300 230">
+            <rect x="0" y="0" width="300" height="230" fill="none"/>
+            <line x1="150" y1="10" x2="150" y2="190" class="plumb"/>
+            <path d="M10 60 L290 60" class="deck"/>
+            <g id="pierGroup">
+              <rect x="128" y="60" width="44" height="135" rx="4" class="pier"/>
+              <rect x="118" y="188" width="64" height="12" rx="3" class="pier-base"/>
+            </g>
+            <path d="M0 150 Q25 140 50 150 T100 150 T150 150 T200 150 T250 150 T300 150 L300 230 L0 230 Z" class="water"/>
+            <path d="M0 200 Q60 196 110 204 Q150 214 190 204 Q240 196 300 200 L300 230 L0 230 Z" class="riverbed"/>
+          </svg>
+          <div class="pier-stats">
+            <div><small>Roll</small><b id="pRoll">--</b></div>
+            <div><small>Pitch</small><b id="pPitch">--</b></div>
+            <div><small>Total tilt</small><b id="pTilt">--</b></div>
+            <div><small>Absolute roll</small><b id="pRollRaw">--</b></div>
+            <div><small>Absolute pitch</small><b id="pPitchRaw">--</b></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head"><h2>Vibration spectrum (FFT)</h2><span class="hint" id="specInfo">-</span></div>
+        <div class="chart-box"><canvas id="specChart"></canvas></div>
+      </article>
+    </section>
+
+    <!-- HISTORY CHARTS -->
+    <section class="grid-3">
+      <article class="card">
+        <div class="card-head"><h2>Tilt history</h2><span class="hint">deg</span></div>
+        <div class="chart-box"><canvas id="tiltChart"></canvas></div>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2>Natural frequency history</h2><span class="hint">Hz</span></div>
+        <div class="chart-box"><canvas id="freqChart"></canvas></div>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2>Vibration history</h2><span class="hint">mg RMS</span></div>
+        <div class="chart-box"><canvas id="vibChart"></canvas></div>
+      </article>
+    </section>
+
+    <!-- EVENTS + THRESHOLDS -->
+    <section class="grid-2 wide-left">
+      <article class="card">
+        <div class="card-head"><h2>Alert events</h2><span class="hint">latest first</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Time</th><th>Status</th><th>Cause</th><th>Tilt (deg)</th><th>Freq (Hz)</th><th>Vib (mg)</th></tr></thead>
+            <tbody id="eventsBody"><tr><td colspan="6" class="empty">No events yet</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2>Alarm thresholds</h2><span class="hint">set in firmware</span></div>
+        <table class="thr">
+          <thead><tr><th>Parameter</th><th class="c-warn">Warning</th><th class="c-danger">Danger</th></tr></thead>
+          <tbody>
+            <tr><td>Tilt</td><td id="thTiltW">-</td><td id="thTiltD">-</td></tr>
+            <tr><td>Frequency drop</td><td id="thFreqW">-</td><td id="thFreqD">-</td></tr>
+            <tr><td>Vibration RMS</td><td id="thVibW">-</td><td id="thVibD">-</td></tr>
+          </tbody>
+        </table>
+        <div class="legend-box">
+          <p><span class="sw g"></span><b>Safe</b>: green LED, buzzer silent.</p>
+          <p><span class="sw y"></span><b>Warning</b>: yellow LED, short chirp every 3 s. Prepare for inspection or evacuation.</p>
+          <p><span class="sw r"></span><b>Danger</b>: red LED, continuous beeping. Evacuate and close the bridge.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer>Scour Sentry &middot; ESP32 + MPU6050 &middot; Firebase Realtime Database</footer>
+
+  <script type="module" src="app.js?v=2"></script>
+</body>
+</html>

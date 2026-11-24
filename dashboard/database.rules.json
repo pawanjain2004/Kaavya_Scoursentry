@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "scourSentry": {
+      "$deviceId": {
+        ".read": true,
+        ".write": false
+      }
+    }
+  }
+}

@@ -14,8 +14,28 @@ const state = {
   packetCount: 0,
   history: [],
   events: [],
-  thresholds: { tiltWarn: 0.5, tiltDanger: 1.0, freqDropWarn: 10, freqDropDanger: 20, vibWarn: 50, vibDanger: 150 },
+  thresholds: {
+    angleSafeLo: 80, angleSafeHi: 100, angleWarnLo: 70, angleWarnHi: 110,
+    freqWarn: 20, freqDanger: 50,
+    vibWarn: 200, vibDanger: 500,
+  },
 };
+
+function angleAlarmLevel(angle, t) {
+  if (!isNum(angle)) return -1;
+  const lo = t.angleWarnLo ?? 80, hi = t.angleWarnHi ?? 100;
+  const sLo = t.angleSafeLo ?? 85, sHi = t.angleSafeHi ?? 95;
+  if (angle <= lo || angle >= hi) return 2;
+  if (angle < sLo || angle > sHi) return 1;
+  return 0;
+}
+
+function freqAlarmLevel(freq, t) {
+  if (!isNum(freq)) return -1;
+  if (freq > (t.freqDanger ?? 50)) return 2;
+  if (freq > (t.freqWarn ?? 20)) return 1;
+  return 0;
+}
 
 function setConnCard(cardId, stateId, detailId, mode, stateText, detail) {
   const card = $(cardId);
@@ -107,9 +127,7 @@ function lineChart(canvasId, datasets, yTitle) {
 const thrLine = (label, color) => ({ label, data: [], borderColor: color, borderDash: [6, 5], borderWidth: 1.5, pointRadius: 0, fill: false });
 
 const tiltChart = lineChart("tiltChart", [
-  { label: "Total tilt", data: [], borderColor: COLORS.blue, backgroundColor: "rgba(56,189,248,0.12)", fill: true },
-  { label: "Roll", data: [], borderColor: COLORS.violet, borderWidth: 1.2 },
-  { label: "Pitch", data: [], borderColor: "#f472b6", borderWidth: 1.2 },
+  { label: "Angle", data: [], borderColor: COLORS.blue, backgroundColor: "rgba(56,189,248,0.12)", fill: true },
   thrLine("Warning", COLORS.yellow),
   thrLine("Danger", COLORS.red),
 ], "deg");
@@ -152,7 +170,15 @@ function renderLive(live) {
   const t = state.thresholds;
   const mpuOk = live.mpuConnected === true || live.sensorOk === true;
   const sdOk = live.sdConnected === true || live.sdOk === true;
-  const hasReadings = live.hasReadings === true || (mpuOk && isNum(live.tilt));
+  const angle = readingAngle(live);
+  const angleCal = live.angleCal === true || live.tiltCal === true;
+  const hasReadings = live.hasReadings === true || (mpuOk && isNum(angle));
+  const fWarn = t.freqWarn ?? t.freqDropWarn ?? 20;
+  const fDanger = t.freqDanger ?? t.freqDropDanger ?? 50;
+  const vWarn = t.vibWarn ?? 200;
+  const vDanger = t.vibDanger ?? 500;
+  const aWarnLo = t.angleWarnLo ?? 80;
+  const aWarnHi = t.angleWarnHi ?? 100;
 
   // connection cards
   setConnCard("cardEsp", "espState", "espDetail", "ok", "ONLINE",
@@ -181,8 +207,9 @@ function renderLive(live) {
     `<span class="${feedCls}">MPU ${mpuOk ? "CONNECTED" : "NOT CONNECTED"}</span>` +
     ` · SD ${sdOk ? "OK" : "NO"}` +
     ` · status ${live.status || LEVELS[isNum(live.level) ? live.level : 0]}` +
-    (hasReadings ? ` · tilt ${fmt(live.tilt, 3)}°` : " · no sensor readings") +
-    (isNum(live.freq) ? ` · f ${fmt(live.freq, 3)} Hz` : "")
+    (hasReadings ? ` · angle ${fmt(angle, 2)}°` : " · no sensor readings") +
+    (isNum(live.freq) ? ` · f ${fmt(live.freq, 2)} Hz` : "") +
+    (isNum(live.vibRms) ? ` · vib ${fmt(live.vibRms, 1)} mg` : "")
   );
 
   // status banner
@@ -203,88 +230,98 @@ function renderLive(live) {
   bz.className = "buzzer" + (live.buzzer ? " on" : live.muted && level > 0 ? " muted" : "");
   $("buzzerText").textContent = live.buzzer ? (level >= 2 ? "Buzzer: alarm" : "Buzzer: chirping") : live.muted && level > 0 ? "Buzzer muted" : "Buzzer off";
 
-  // tilt / freq / vib — show NO SENSOR when MPU is missing (no fake values)
+  // angle / freq / vib — show NO SENSOR when MPU is missing
   if (!mpuOk) {
     $("tiltValue").textContent = "N/A";
-    $("rollValue").textContent = "N/A";
-    $("pitchValue").textContent = "N/A";
     setTag($("tiltTag"), -1);
     $("tiltTag").textContent = "NO SENSOR";
-    setGauge("tiltGauge", null, t.tiltWarn, t.tiltDanger, "tiltWarnLbl", "tiltDangerLbl", "°");
+    setGauge("tiltGauge", null, 5, 10, "tiltWarnLbl", "tiltDangerLbl", "°");
 
     $("freqValue").textContent = "N/A";
-    $("baseFreqValue").textContent = "N/A";
-    $("freqChangeValue").textContent = "N/A";
     setTag($("freqTag"), -1);
     $("freqTag").textContent = "NO SENSOR";
-    setGauge("freqGauge", null, t.freqDropWarn, t.freqDropDanger, "freqWarnLbl", "freqDangerLbl", "%");
+    setGauge("freqGauge", null, fWarn, fDanger, "freqWarnLbl", "freqDangerLbl", "");
 
     $("vibValue").textContent = "N/A";
-    $("vibPeakValue").textContent = "N/A";
-    $("peakAmpValue").textContent = "N/A";
+    if ($("vibPeakValue")) $("vibPeakValue").textContent = "N/A";
     setTag($("vibTag"), -1);
     $("vibTag").textContent = "NO SENSOR";
-    setGauge("vibGauge", null, t.vibWarn, t.vibDanger, "vibWarnLbl", "vibDangerLbl", "");
+    setGauge("vibGauge", null, vWarn, vDanger, "vibWarnLbl", "vibDangerLbl", "");
   } else {
-    $("tiltValue").textContent = fmt(live.tilt, 3);
-    $("rollValue").textContent = fmt(live.roll, 3);
-    $("pitchValue").textContent = fmt(live.pitch, 3);
-    setTag($("tiltTag"), live.tiltCal && isNum(live.tilt) ? levelOf(live.tilt, t.tiltWarn, t.tiltDanger) : -1);
-    setGauge("tiltGauge", live.tilt, t.tiltWarn, t.tiltDanger, "tiltWarnLbl", "tiltDangerLbl", "°");
+    $("tiltValue").textContent = fmt(angle, 2);
+    const aLvl = angleCal ? angleAlarmLevel(angle, t) : -1;
+    setTag($("tiltTag"), aLvl);
+    // Gauge uses distance from 90°: safe ≤10, warn ≤20, danger >20
+    const from90 = isNum(angle) ? Math.abs(angle - 90) : null;
+    setGauge("tiltGauge", from90, 10, 20, "tiltWarnLbl", "tiltDangerLbl", "°");
+    $("tiltWarnLbl").textContent = "80–100";
+    $("tiltDangerLbl").textContent = "≤70/≥110";
 
-    $("freqValue").textContent = live.freqValid ? fmt(live.freq, 3) : isNum(live.freq) ? `~${fmt(live.freq, 2)}` : "--";
-    $("baseFreqValue").textContent = fmt(live.baselineFreq, 3);
-    const ch = live.freqChangePct;
-    $("freqChangeValue").textContent = isNum(ch) ? `${ch > 0 ? "+" : ""}${ch.toFixed(1)}%` : "--";
-    const drop = isNum(ch) ? Math.max(0, -ch) : null;
-    setTag($("freqTag"), live.freqValid && live.freqCal ? levelOf(drop, t.freqDropWarn, t.freqDropDanger) : -1);
-    setGauge("freqGauge", drop, t.freqDropWarn, t.freqDropDanger, "freqWarnLbl", "freqDangerLbl", "%");
+    $("freqValue").textContent = isNum(live.freq) ? `${fmt(live.freq, 2)}${live.freqValid ? "" : "?"}` : "--";
+    const fLvl = isNum(live.freq) ? freqAlarmLevel(live.freq, t) : -1;
+    setTag($("freqTag"), fLvl);
+    setGauge("freqGauge", live.freq, fWarn, fDanger, "freqWarnLbl", "freqDangerLbl", "");
+    $("freqWarnLbl").textContent = `${fWarn} Hz`;
+    $("freqDangerLbl").textContent = `${fDanger} Hz`;
 
     $("vibValue").textContent = fmt(live.vibRms, 1);
-    $("vibPeakValue").textContent = fmt(live.vibPeak, 1);
-    $("peakAmpValue").textContent = fmt(live.freqPeakMg, 2);
-    setTag($("vibTag"), isNum(live.vibRms) ? levelOf(live.vibRms, t.vibWarn, t.vibDanger) : -1);
-    setGauge("vibGauge", live.vibRms, t.vibWarn, t.vibDanger, "vibWarnLbl", "vibDangerLbl", "");
+    if ($("vibPeakValue")) $("vibPeakValue").textContent = fmt(live.vibPeak, 1);
+    setTag($("vibTag"), isNum(live.vibRms) ? levelOf(live.vibRms, vWarn, vDanger) : -1);
+    setGauge("vibGauge", live.vibRms, vWarn, vDanger, "vibWarnLbl", "vibDangerLbl", "");
   }
 
   // health
   setHealth("hSensor", mpuOk ? "CONNECTED" : "NOT CONNECTED", mpuOk ? "ok" : "bad");
   setHealth("hSd", sdOk ? "CONNECTED" : "NOT CONNECTED", sdOk ? "ok" : "bad");
   setHealth("hRssi", isNum(rssi) ? `${rssi} dBm` : "--", !isNum(rssi) ? "" : rssi > -67 ? "ok" : rssi > -80 ? "warn" : "bad");
-  setHealth("hTiltCal", !mpuOk ? "N/A" : live.calibrating && !live.tiltCal ? "Calibrating..." : live.tiltCal ? "Set" : "Not set", !mpuOk ? "" : live.tiltCal ? "ok" : "warn");
-  setHealth("hFreqCal", !mpuOk ? "N/A" : live.freqCal ? `${fmt(live.baselineFreq, 3)} Hz` : live.calibrating ? "Calibrating..." : "Not set", !mpuOk ? "" : live.freqCal ? "ok" : "warn");
+  setHealth("hTiltCal", !mpuOk ? "N/A" : live.calibrating && !angleCal ? "Do Z then N" : angleCal ? "Saved" : "Not set", !mpuOk ? "" : angleCal ? "ok" : "warn");
+  setHealth("hFreqCal", !mpuOk ? "N/A" : live.freqCal ? `${fmt(live.baselineFreq, 2)} Hz` : "Send F on device", !mpuOk ? "" : live.freqCal ? "ok" : "warn");
   setHealth("hFs", isNum(live.sampleRate) ? `${live.sampleRate.toFixed(1)} Hz` : "N/A");
   setHealth("hUptime", fmtUptime(live.uptime));
 
   // pier visual
-  $("pRoll").textContent = mpuOk ? `${fmt(live.roll, 3)}°` : "N/A";
-  $("pPitch").textContent = mpuOk ? `${fmt(live.pitch, 3)}°` : "N/A";
-  $("pTilt").textContent = mpuOk ? `${fmt(live.tilt, 3)}°` : "N/A";
-  $("pRollRaw").textContent = mpuOk ? `${fmt(live.rollRaw, 2)}°` : "N/A";
-  $("pPitchRaw").textContent = mpuOk ? `${fmt(live.pitchRaw, 2)}°` : "N/A";
-  const vis = mpuOk && isNum(live.roll) ? Math.max(-15, Math.min(15, live.roll * 10)) : 0;
+  $("pTilt").textContent = mpuOk ? `${fmt(angle, 2)}°` : "N/A";
+  $("pRoll").textContent = mpuOk && isNum(angle) ? `${fmt(Math.abs(angle - 90), 2)}° from 90` : "N/A";
+  $("pPitch").textContent = mpuOk && isNum(live.freq)
+    ? `${fmt(live.freq, 2)} Hz${live.freqValid ? "" : "?"}`
+    : mpuOk ? "waiting..." : "N/A";
+  $("pRollRaw").textContent = mpuOk ? `${fmt(live.vibRms, 1)} mg` : "N/A";
+  $("pPitchRaw").textContent = mpuOk ? `${fmt(live.vibPeak, 1)} mg` : "N/A";
+  const vis = mpuOk && isNum(angle) ? Math.max(-15, Math.min(15, (angle - 90) * 2)) : 0;
   $("pierGroup").style.transform = `rotate(${vis}deg)`;
   const pierColor = !mpuOk ? COLORS.muted : level >= 2 ? COLORS.red : level === 1 ? COLORS.yellow : "#94a3b8";
   document.querySelector("#pierGroup .pier").style.stroke = pierColor;
 
   // thresholds table
-  $("thTiltW").textContent = `${t.tiltWarn}°`;
-  $("thTiltD").textContent = `${t.tiltDanger}°`;
-  $("thFreqW").textContent = `${t.freqDropWarn}%`;
-  $("thFreqD").textContent = `${t.freqDropDanger}%`;
-  $("thVibW").textContent = `${t.vibWarn} mg`;
-  $("thVibD").textContent = `${t.vibDanger} mg`;
+  $("thTiltW").textContent = `${aWarnLo}–${t.angleSafeLo ?? 80}° / ${t.angleSafeHi ?? 100}–${aWarnHi}°`;
+  $("thTiltD").textContent = `≤${aWarnLo}° or ≥${aWarnHi}°`;
+  $("thFreqW").textContent = `>${fWarn}–${fDanger} Hz`;
+  $("thFreqD").textContent = `>${fDanger} Hz`;
+  $("thVibW").textContent = `${vWarn}–${vDanger} mg`;
+  $("thVibD").textContent = `≥${vDanger} mg`;
 
   updateHistoryCharts();
   updateConnection();
 }
 
 const STATUS_MSG = {
-  0: "All parameters within safe limits.",
-  1: "Abnormal behaviour detected. Inspect the pier and prepare for evacuation.",
-  2: "Critical threshold exceeded. Evacuate and close the bridge immediately.",
+  0: "Angle 80–100°, frequency ≤20 Hz, vibration <200 mg. All clear.",
+  1: "Warning band reached (yellow + two beeps). Take care and prepare if it worsens.",
+  2: "Danger threshold exceeded (red + continuous beep). Evacuate immediately.",
 };
-const ALERT_NAMES = { TILT: "Tilt exceeded", FREQ: "Natural frequency drop", VIB: "High vibration", SENSOR: "MPU6050 not connected" };
+const ALERT_NAMES = {
+  ANGLE: "Angle exceeded",
+  TILT: "Angle exceeded",
+  FREQ: "Natural frequency drop",
+  VIB: "High vibration",
+  SENSOR: "MPU6050 not connected",
+};
+
+function readingAngle(live) {
+  if (isNum(live.angle)) return live.angle;
+  if (isNum(live.tilt)) return live.tilt;
+  return null;
+}
 
 function renderStatus(level, alerts, live) {
   const offline = isOffline();
@@ -343,25 +380,26 @@ function updateHistoryCharts() {
   const flat = (v) => h.map(() => v);
 
   tiltChart.data.labels = labels;
-  tiltChart.data.datasets[0].data = h.map((p) => val(p.tilt));
-  tiltChart.data.datasets[1].data = h.map((p) => val(p.roll));
-  tiltChart.data.datasets[2].data = h.map((p) => val(p.pitch));
-  tiltChart.data.datasets[3].data = flat(t.tiltWarn);
-  tiltChart.data.datasets[4].data = flat(t.tiltDanger);
+  tiltChart.data.datasets[0].data = h.map((p) => val(isNum(p.angle) ? p.angle : p.tilt));
+  tiltChart.data.datasets[1].data = flat(t.angleSafeLo ?? 80);
+  tiltChart.data.datasets[2].data = flat(t.angleWarnLo ?? 70);
   tiltChart.update();
 
-  const base = state.live && isNum(state.live.baselineFreq) ? state.live.baselineFreq : null;
+  const fW = t.freqWarn ?? t.freqDropWarn ?? 20;
+  const fD = t.freqDanger ?? t.freqDropDanger ?? 50;
   freqChart.data.labels = labels;
   freqChart.data.datasets[0].data = h.map((p) => val(p.freq));
-  freqChart.data.datasets[1].data = flat(base);
-  freqChart.data.datasets[2].data = flat(base ? base * (1 - t.freqDropWarn / 100) : null);
-  freqChart.data.datasets[3].data = flat(base ? base * (1 - t.freqDropDanger / 100) : null);
+  freqChart.data.datasets[1].data = flat(fW);
+  freqChart.data.datasets[2].data = flat(fW);
+  freqChart.data.datasets[3].data = flat(fD);
+  if (freqChart.data.datasets[1]) freqChart.data.datasets[1].label = "Warn 20 Hz";
+  if (freqChart.data.datasets[3]) freqChart.data.datasets[3].label = "Danger 50 Hz";
   freqChart.update();
 
   vibChart.data.labels = labels;
   vibChart.data.datasets[0].data = h.map((p) => val(p.vibRms));
-  vibChart.data.datasets[1].data = flat(t.vibWarn);
-  vibChart.data.datasets[2].data = flat(t.vibDanger);
+  vibChart.data.datasets[1].data = flat(t.vibWarn ?? 200);
+  vibChart.data.datasets[2].data = flat(t.vibDanger ?? 500);
   vibChart.update();
 }
 
@@ -400,8 +438,8 @@ function addEvent(ev) {
         isNum(e.ts) ? fmtDateTime(e.ts) : "--",
         LEVELS[lvl],
         (e.alerts || (lvl === 0 ? "Recovered" : "-")).split(",").map((a) => ALERT_NAMES[a] || a).join(", "),
-        fmt(e.tilt, 3),
-        fmt(e.freq, 3),
+        fmt(isNum(e.angle) ? e.angle : e.tilt, 2),
+        fmt(e.freq, 2),
         fmt(e.vibRms, 1),
       ];
       cells.forEach((c, i) => {
@@ -468,7 +506,7 @@ async function startFirebase() {
   pushFeed(`<span class="t">${fmtTime(Date.now())}</span>Connecting to Firebase Realtime Database...`);
 
   const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-app.js`);
-  const { getDatabase, ref, onValue, onChildAdded, query, limitToLast } = await import(
+  const { getDatabase, ref, onValue } = await import(
     `https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-database.js`
   );
 
@@ -501,8 +539,59 @@ async function startFirebase() {
   }, onErr);
 
   onValue(ref(db, `${base}/spectrum`), (s) => renderSpectrum(s.val()), onErr);
-  onChildAdded(query(ref(db, `${base}/history`), limitToLast(HISTORY_POINTS)), (s) => addHistory(s.val()), onErr);
-  onChildAdded(query(ref(db, `${base}/events`), limitToLast(25)), (s) => addEvent(s.val()), onErr);
+
+  // Full replace (device keeps only last 5 minutes on Firebase)
+  onValue(ref(db, `${base}/history`), (s) => {
+    const v = s.val();
+    state.history = [];
+    if (v && typeof v === "object") {
+      Object.values(v)
+        .filter((p) => p && isNum(p.ts))
+        .sort((a, b) => a.ts - b.ts)
+        .slice(-HISTORY_POINTS)
+        .forEach((p) => state.history.push(p));
+    }
+    updateHistoryCharts();
+  }, onErr);
+
+  onValue(ref(db, `${base}/events`), (s) => {
+    const v = s.val();
+    state.events = [];
+    if (v && typeof v === "object") {
+      Object.values(v)
+        .filter((e) => e)
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .slice(0, 50)
+        .forEach((e) => state.events.push(e));
+    }
+    // Re-render table from state.events
+    const body = $("eventsBody");
+    if (!state.events.length) {
+      body.innerHTML = `<tr><td colspan="6" class="empty">No events in the last 5 minutes</td></tr>`;
+      return;
+    }
+    body.replaceChildren(
+      ...state.events.map((e) => {
+        const tr = document.createElement("tr");
+        const lvl = isNum(e.level) ? e.level : 0;
+        const cells = [
+          isNum(e.ts) ? fmtDateTime(e.ts) : "--",
+          LEVELS[lvl],
+          (e.alerts || (lvl === 0 ? "Recovered" : "-")).split(",").map((a) => ALERT_NAMES[a] || a).join(", "),
+          fmt(isNum(e.angle) ? e.angle : e.tilt, 2),
+          fmt(e.freq, 2),
+          fmt(e.vibRms, 1),
+        ];
+        cells.forEach((c, i) => {
+          const td = document.createElement("td");
+          td.textContent = c;
+          if (i === 1) td.className = lvl >= 2 ? "c-danger" : lvl === 1 ? "c-warn" : "ok";
+          tr.appendChild(td);
+        });
+        return tr;
+      })
+    );
+  }, onErr);
 }
 
 // ---------------------------------------------------------------- data source: demo simulator

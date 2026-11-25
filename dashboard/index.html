@@ -6,7 +6,7 @@
   <title>Scour Sentry | Bridge Pier Monitoring</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -108,27 +108,27 @@
     <!-- KPI CARDS -->
     <section class="kpis">
       <article class="card kpi">
-        <div class="kpi-head"><span>Pier tilt</span><span class="tag" id="tiltTag">-</span></div>
+        <div class="kpi-head"><span>Angle</span><span class="tag" id="tiltTag">-</span></div>
         <div class="kpi-value"><span id="tiltValue">--</span><small>deg</small></div>
-        <div class="kpi-sub">Roll <b id="rollValue">--</b> deg &nbsp;|&nbsp; Pitch <b id="pitchValue">--</b> deg</div>
+        <div class="kpi-sub">Safe <b>80–100°</b> · Warn <b>70–80 / 100–110°</b> · Danger <b>≤70 / ≥110°</b></div>
         <div class="gauge" id="tiltGauge"><div class="gz g"></div><div class="gz y"></div><div class="gz r"></div><div class="marker"></div></div>
-        <div class="gauge-legend"><span>0</span><span id="tiltWarnLbl">warn</span><span id="tiltDangerLbl">danger</span></div>
+        <div class="gauge-legend"><span>70°</span><span id="tiltWarnLbl">80–100</span><span id="tiltDangerLbl">110°</span></div>
       </article>
 
       <article class="card kpi">
-        <div class="kpi-head"><span>Natural frequency</span><span class="tag" id="freqTag">-</span></div>
+        <div class="kpi-head"><span>Frequency</span><span class="tag" id="freqTag">-</span></div>
         <div class="kpi-value"><span id="freqValue">--</span><small>Hz</small></div>
-        <div class="kpi-sub">Baseline <b id="baseFreqValue">--</b> Hz &nbsp;|&nbsp; Change <b id="freqChangeValue">--</b></div>
+        <div class="kpi-sub">Safe <b>≤20 Hz</b> · Warn <b>≤50 Hz</b> · Danger <b>&gt;50 Hz</b></div>
         <div class="gauge" id="freqGauge"><div class="gz g"></div><div class="gz y"></div><div class="gz r"></div><div class="marker"></div></div>
-        <div class="gauge-legend"><span>0% drop</span><span id="freqWarnLbl">warn</span><span id="freqDangerLbl">danger</span></div>
+        <div class="gauge-legend"><span>0</span><span id="freqWarnLbl">20 Hz</span><span id="freqDangerLbl">50 Hz</span></div>
       </article>
 
       <article class="card kpi">
         <div class="kpi-head"><span>Vibration (RMS)</span><span class="tag" id="vibTag">-</span></div>
         <div class="kpi-value"><span id="vibValue">--</span><small>mg</small></div>
-        <div class="kpi-sub">Peak <b id="vibPeakValue">--</b> mg &nbsp;|&nbsp; Peak amp. <b id="peakAmpValue">--</b> mg</div>
+        <div class="kpi-sub">Safe <b>&lt;200</b> · Warn <b>&lt;500</b> · Danger <b>≥500</b> mg &nbsp;|&nbsp; Peak <b id="vibPeakValue">--</b></div>
         <div class="gauge" id="vibGauge"><div class="gz g"></div><div class="gz y"></div><div class="gz r"></div><div class="marker"></div></div>
-        <div class="gauge-legend"><span>0</span><span id="vibWarnLbl">warn</span><span id="vibDangerLbl">danger</span></div>
+        <div class="gauge-legend"><span>0</span><span id="vibWarnLbl">200</span><span id="vibDangerLbl">500</span></div>
       </article>
 
       <article class="card kpi health">
@@ -137,7 +137,7 @@
           <li><span>MPU6050 sensor</span><b id="hSensor">-</b></li>
           <li><span>SD card logging</span><b id="hSd">-</b></li>
           <li><span>WiFi signal</span><b id="hRssi">-</b></li>
-          <li><span>Tilt zero</span><b id="hTiltCal">-</b></li>
+          <li><span>Angle calibration</span><b id="hTiltCal">-</b></li>
           <li><span>Freq. baseline</span><b id="hFreqCal">-</b></li>
           <li><span>Sample rate</span><b id="hFs">-</b></li>
           <li><span>Uptime</span><b id="hUptime">-</b></li>
@@ -148,7 +148,7 @@
     <!-- PIER VISUAL + SPECTRUM -->
     <section class="grid-2">
       <article class="card">
-        <div class="card-head"><h2>Pier orientation</h2><span class="hint">roll drawn x10 exaggerated</span></div>
+        <div class="card-head"><h2>Pier orientation</h2><span class="hint">angle drawn x10 exaggerated</span></div>
         <div class="pier-wrap">
           <svg id="pierSvg" viewBox="0 0 300 230">
             <rect x="0" y="0" width="300" height="230" fill="none"/>
@@ -162,11 +162,11 @@
             <path d="M0 200 Q60 196 110 204 Q150 214 190 204 Q240 196 300 200 L300 230 L0 230 Z" class="riverbed"/>
           </svg>
           <div class="pier-stats">
-            <div><small>Roll</small><b id="pRoll">--</b></div>
-            <div><small>Pitch</small><b id="pPitch">--</b></div>
-            <div><small>Total tilt</small><b id="pTilt">--</b></div>
-            <div><small>Absolute roll</small><b id="pRollRaw">--</b></div>
-            <div><small>Absolute pitch</small><b id="pPitchRaw">--</b></div>
+            <div><small>Angle</small><b id="pTilt">--</b></div>
+            <div><small>|Angle| for alarm</small><b id="pRoll">--</b></div>
+            <div><small>Frequency</small><b id="pPitch">--</b></div>
+            <div><small>Vibration RMS</small><b id="pRollRaw">--</b></div>
+            <div><small>Vibration peak</small><b id="pPitchRaw">--</b></div>
           </div>
         </div>
       </article>
@@ -180,7 +180,7 @@
     <!-- HISTORY CHARTS -->
     <section class="grid-3">
       <article class="card">
-        <div class="card-head"><h2>Tilt history</h2><span class="hint">deg</span></div>
+        <div class="card-head"><h2>Angle history</h2><span class="hint">deg</span></div>
         <div class="chart-box"><canvas id="tiltChart"></canvas></div>
       </article>
       <article class="card">
@@ -199,7 +199,7 @@
         <div class="card-head"><h2>Alert events</h2><span class="hint">latest first</span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Time</th><th>Status</th><th>Cause</th><th>Tilt (deg)</th><th>Freq (Hz)</th><th>Vib (mg)</th></tr></thead>
+            <thead><tr><th>Time</th><th>Status</th><th>Cause</th><th>Angle (deg)</th><th>Freq (Hz)</th><th>Vib (mg)</th></tr></thead>
             <tbody id="eventsBody"><tr><td colspan="6" class="empty">No events yet</td></tr></tbody>
           </table>
         </div>
@@ -209,14 +209,14 @@
         <table class="thr">
           <thead><tr><th>Parameter</th><th class="c-warn">Warning</th><th class="c-danger">Danger</th></tr></thead>
           <tbody>
-            <tr><td>Tilt</td><td id="thTiltW">-</td><td id="thTiltD">-</td></tr>
-            <tr><td>Frequency drop</td><td id="thFreqW">-</td><td id="thFreqD">-</td></tr>
+            <tr><td>Angle</td><td id="thTiltW">-</td><td id="thTiltD">-</td></tr>
+            <tr><td>Frequency</td><td id="thFreqW">-</td><td id="thFreqD">-</td></tr>
             <tr><td>Vibration RMS</td><td id="thVibW">-</td><td id="thVibD">-</td></tr>
           </tbody>
         </table>
         <div class="legend-box">
           <p><span class="sw g"></span><b>Safe</b>: green LED, buzzer silent.</p>
-          <p><span class="sw y"></span><b>Warning</b>: yellow LED, short chirp every 3 s. Prepare for inspection or evacuation.</p>
+          <p><span class="sw y"></span><b>Warning</b>: yellow LED, two beeps. Take care / prepare to evacuate.</p>
           <p><span class="sw r"></span><b>Danger</b>: red LED, continuous beeping. Evacuate and close the bridge.</p>
         </div>
       </article>
@@ -225,6 +225,6 @@
 
   <footer>Scour Sentry &middot; ESP32 + MPU6050 &middot; Firebase Realtime Database</footer>
 
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>

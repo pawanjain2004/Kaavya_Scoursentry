@@ -1,9 +1,10 @@
-// Copy to firebase-config.js for local use / deploy:
-//   cp firebase-config.example.js firebase-config.js
+// This file is only a reference.
+// Real config is generated from .env (local) or Vercel Environment Variables:
+//   npm run build
+// which creates firebase-config.js (gitignored).
 //
-// NOTE: Firebase *web* config (apiKey, appId, databaseURL) is visible in the
-// browser after you host the site. That is normal. Protect data with
-// Realtime Database rules — never put the Database Secret here.
+// NOTE: After hosting, these values are still visible in the browser.
+// .env only keeps them out of GitHub.
 
 export const firebaseConfig = {
   apiKey: "YOUR_API_KEY",

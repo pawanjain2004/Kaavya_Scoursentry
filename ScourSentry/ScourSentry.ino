@@ -81,8 +81,8 @@ struct EventRec;
 #define ANGLE_SAFE_HI          100.0f
 #define ANGLE_WARN_LO          70.0f
 #define ANGLE_WARN_HI         110.0f
-// Frequency (Hz): ≤20 SAFE, ≤50 WARNING, >50 DANGER
-#define FREQ_WARN_HZ           20.0f
+// Frequency (Hz): ≤30 SAFE, ≤50 WARNING, >50 DANGER
+#define FREQ_WARN_HZ           30.0f
 #define FREQ_DANGER_HZ         50.0f
 // Vibration (mg): <200 SAFE, <500 WARNING, ≥500 DANGER
 #define VIB_WARN_MG           200.0f

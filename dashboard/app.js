@@ -16,7 +16,7 @@ const state = {
   events: [],
   thresholds: {
     angleSafeLo: 80, angleSafeHi: 100, angleWarnLo: 70, angleWarnHi: 110,
-    freqWarn: 20, freqDanger: 50,
+    freqWarn: 30, freqDanger: 50,
     vibWarn: 200, vibDanger: 500,
   },
 };
@@ -34,7 +34,7 @@ function angleAlarmLevel(angle, t) {
 function freqAlarmLevel(freq, t) {
   if (!isNum(freq)) return -1;
   if (freq > (t.freqDanger ?? 50)) return 2;
-  if (freq > (t.freqWarn ?? 20)) return 1;
+  if (freq > (t.freqWarn ?? 30)) return 1;
   return 0;
 }
 
@@ -174,7 +174,7 @@ function renderLive(live) {
   const angle = readingAngle(live);
   const angleCal = live.angleCal === true || live.tiltCal === true;
   const hasReadings = live.hasReadings === true || (mpuOk && isNum(angle));
-  const fWarn = t.freqWarn ?? t.freqDropWarn ?? 20;
+  const fWarn = t.freqWarn ?? t.freqDropWarn ?? 30;
   const fDanger = t.freqDanger ?? t.freqDropDanger ?? 50;
   const vWarn = t.vibWarn ?? 200;
   const vDanger = t.vibDanger ?? 500;
@@ -306,7 +306,7 @@ function renderLive(live) {
 }
 
 const STATUS_MSG = {
-  0: "Angle 80–100°, frequency ≤20 Hz, vibration <200 mg. All clear.",
+  0: "Angle 80–100°, frequency ≤30 Hz, vibration <200 mg. All clear.",
   1: "Warning band reached (yellow + two beeps). Take care and prepare if it worsens.",
   2: "Danger threshold exceeded (red + continuous beep). Evacuate immediately.",
 };
@@ -386,14 +386,14 @@ function updateHistoryCharts() {
   tiltChart.data.datasets[2].data = flat(t.angleWarnLo ?? 70);
   tiltChart.update();
 
-  const fW = t.freqWarn ?? t.freqDropWarn ?? 20;
+  const fW = t.freqWarn ?? t.freqDropWarn ?? 30;
   const fD = t.freqDanger ?? t.freqDropDanger ?? 50;
   freqChart.data.labels = labels;
   freqChart.data.datasets[0].data = h.map((p) => val(p.freq));
   freqChart.data.datasets[1].data = flat(fW);
   freqChart.data.datasets[2].data = flat(fW);
   freqChart.data.datasets[3].data = flat(fD);
-  if (freqChart.data.datasets[1]) freqChart.data.datasets[1].label = "Warn 20 Hz";
+  if (freqChart.data.datasets[1]) freqChart.data.datasets[1].label = "Warn 30 Hz";
   if (freqChart.data.datasets[3]) freqChart.data.datasets[3].label = "Danger 50 Hz";
   freqChart.update();
 

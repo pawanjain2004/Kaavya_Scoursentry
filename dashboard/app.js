@@ -23,10 +23,11 @@ const state = {
 
 function angleAlarmLevel(angle, t) {
   if (!isNum(angle)) return -1;
-  const lo = t.angleWarnLo ?? 80, hi = t.angleWarnHi ?? 100;
-  const sLo = t.angleSafeLo ?? 85, sHi = t.angleSafeHi ?? 95;
-  if (angle <= lo || angle >= hi) return 2;
-  if (angle < sLo || angle > sHi) return 1;
+  const mag = Math.abs(angle); // +82 and -82 treated the same
+  const lo = t.angleWarnLo ?? 70, hi = t.angleWarnHi ?? 110;
+  const sLo = t.angleSafeLo ?? 80, sHi = t.angleSafeHi ?? 100;
+  if (mag <= lo || mag >= hi) return 2;
+  if (mag < sLo || mag > sHi) return 1;
   return 0;
 }
 
@@ -251,8 +252,8 @@ function renderLive(live) {
     $("tiltValue").textContent = fmt(angle, 2);
     const aLvl = angleCal ? angleAlarmLevel(angle, t) : -1;
     setTag($("tiltTag"), aLvl);
-    // Gauge uses distance from 90°: safe ≤10, warn ≤20, danger >20
-    const from90 = isNum(angle) ? Math.abs(angle - 90) : null;
+    // Gauge uses ||angle|-90|: safe ≤10, warn ≤20, danger >20 (+/- tilt same)
+    const from90 = isNum(angle) ? Math.abs(Math.abs(angle) - 90) : null;
     setGauge("tiltGauge", from90, 10, 20, "tiltWarnLbl", "tiltDangerLbl", "°");
     $("tiltWarnLbl").textContent = "80–100";
     $("tiltDangerLbl").textContent = "≤70/≥110";

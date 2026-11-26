@@ -75,7 +75,8 @@ struct EventRec;
 #define SPECTRUM_POINTS 64
 
 // Alarm thresholds (final criteria)
-// Angle: SAFE 80–100°, WARNING 70–80 & 100–110°, DANGER ≤70° or ≥110°
+// Angle uses |angle| so +82° and -82° are treated the same.
+// |Angle|: SAFE 80–100°, WARNING 70–80 & 100–110°, DANGER ≤70° or ≥110°
 #define ANGLE_SAFE_LO          80.0f
 #define ANGLE_SAFE_HI          100.0f
 #define ANGLE_WARN_LO          70.0f
@@ -90,9 +91,10 @@ struct EventRec;
 
 static int angleLevel(float a) {
   if (!isfinite(a)) return 0;
-  if (a <= ANGLE_WARN_LO || a >= ANGLE_WARN_HI) return 2;                 // danger
-  if (a < ANGLE_SAFE_LO || a > ANGLE_SAFE_HI) return 1;                   // warning bands
-  return 0;                                                              // 80–100 safe
+  float mag = fabsf(a);   // ignore tilt direction (+/-)
+  if (mag <= ANGLE_WARN_LO || mag >= ANGLE_WARN_HI) return 2;             // danger
+  if (mag < ANGLE_SAFE_LO || mag > ANGLE_SAFE_HI) return 1;               // warning bands
+  return 0;                                                              // |80|–|100| safe
 }
 
 static int freqLevel(float f, bool ready) {
